@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Focos de Queimada no Brasil</title>
+  <meta name="description" content="Mapa dos focos de calor detectados pelo satélite de referência do INPE desde 2020, por hexágono e por município.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="mapa" aria-label="Mapa do Brasil com focos de queimada"></div>
+
+  <aside id="painel">
+    <header>
+      <h1>Focos de queimada no Brasil</h1>
+      <p class="sub">Satélite de referência do INPE · <span id="atualizado">carregando…</span></p>
+    </header>
+
+    <section class="controles">
+      <label>Ano
+        <select id="ano"></select>
+      </label>
+      <label>Bioma
+        <select id="bioma"><option value="-1">Todos</option></select>
+      </label>
+      <div class="camada" role="radiogroup" aria-label="Camada do mapa">
+        <button type="button" data-camada="hex" class="ativo" role="radio" aria-checked="true">Hexágonos</button>
+        <button type="button" data-camada="mun" role="radio" aria-checked="false">Municípios</button>
+      </div>
+    </section>
+
+    <section class="cards">
+      <div class="card">
+        <span class="rotulo" id="rotulo-periodo">Focos no ano</span>
+        <strong id="total">–</strong>
+      </div>
+      <div class="card">
+        <span class="rotulo" id="rotulo-variacao">vs. ano anterior</span>
+        <strong id="variacao">–</strong>
+      </div>
+    </section>
+
+    <section class="grafico">
+      <div class="grafico-topo">
+        <span class="rotulo">Focos por mês <span class="dica">clique num mês para filtrar</span></span>
+        <button type="button" id="play" aria-label="Animar meses">▶</button>
+      </div>
+      <svg id="barras" role="img" aria-label="Focos por mês"></svg>
+      <div class="legenda-barras"><span class="sw atual"></span><span id="leg-atual">ano</span><span class="sw anterior"></span><span id="leg-anterior">ano anterior</span></div>
+    </section>
+
+    <section id="municipio" class="municipio" hidden>
+      <div class="mun-topo">
+        <h2 id="mun-nome"></h2>
+        <button type="button" id="mun-fechar" aria-label="Fechar">×</button>
+      </div>
+      <p id="mun-resumo"></p>
+      <svg id="mun-serie" role="img" aria-label="Focos por mês no município desde 2020"></svg>
+      <p class="dica" id="mun-eixo"></p>
+    </section>
+    <p class="dica" id="dica-municipio">Na camada Municípios, clique num município para ver a série desde 2020.</p>
+
+    <footer>
+      <div class="legenda-mapa">
+        <span class="rotulo">Focos <span id="leg-escopo">por hexágono de 253 km²</span></span>
+        <div class="rampa"></div>
+        <div class="rampa-valores"><span>1</span><span id="leg-max">–</span></div>
+      </div>
+      <p class="fonte">Dados: <a href="https://terrabrasilis.dpi.inpe.br/queimadas/portal/" target="_blank" rel="noopener">INPE / BDQueimadas</a> e malha municipal do <a href="https://www.ibge.gov.br/" target="_blank" rel="noopener">IBGE</a>.
+        <a href="https://github.com/LuissFellipe/queimadas-br" target="_blank" rel="noopener">Código do pipeline</a></p>
+    </footer>
+  </aside>
+
+  <div id="tooltip" hidden></div>
+
+  <script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/h3-js@4.1.0/dist/h3-js.umd.js"></script>
+  <script src="https://unpkg.com/deck.gl@9.1.14/dist.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

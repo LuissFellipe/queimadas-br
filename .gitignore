@@ -5,3 +5,4 @@ dbt_queimadas/logs/
 dbt_queimadas/dbt_packages/
 __pycache__/
 dbt_queimadas/.user.yml
+site/data/
