@@ -29,19 +29,38 @@ def indice_bioma(bioma):
     return BIOMAS.index(bioma) if bioma in BIOMAS else len(BIOMAS)
 
 
-def exportar_focos(conn):
+def exportar_lista_municipios(conn):
+    # A posição na lista é o índice que os focos usam para apontar o município.
+    linhas = conn.execute(
+        """select m.municipio_id, m.nome, m.uf_sigla, m.regiao,
+                  round(st_xmin(s.geom)::numeric, 3), round(st_ymin(s.geom)::numeric, 3),
+                  round(st_xmax(s.geom)::numeric, 3), round(st_ymax(s.geom)::numeric, 3)
+           from marts.dim_municipios m
+           join staging.stg_ibge__municipios s using (municipio_id)
+           order by m.municipio_id"""
+    ).fetchall()
+    lista = [[mid, nome, uf, regiao, [float(x) for x in caixa]]
+             for mid, nome, uf, regiao, *caixa in linhas]
+    indice = {linha[0]: i for i, linha in enumerate(lista)}
+    return indice, gravar(SAIDA / "municipios_lista.json", lista)
+
+
+def exportar_focos(conn, indice_municipio):
     # Por ano, em sequência: lat e lon em milésimos de grau (~110 m, abaixo do
-    # pixel de 1 km do sensor), dia do ano e índice do bioma.
+    # pixel de 1 km do sensor), dia do ano, índice do bioma e índice do
+    # município em municipios_lista.json.
     por_ano = defaultdict(list)
     cursor = conn.cursor(name="focos")
     cursor.itersize = 50_000
     cursor.execute(
-        """select extract(year from data)::int, extract(doy from data)::int, bioma, lat, lon
+        """select extract(year from data)::int, extract(doy from data)::int, bioma, lat, lon,
+                  municipio_id
            from intermediate.int_focos__geolocalizados
            order by data"""
     )
-    for ano, dia, bioma, lat, lon in cursor:
-        por_ano[ano] += [round(lat * 1000), round(lon * 1000), dia, indice_bioma(bioma)]
+    for ano, dia, bioma, lat, lon, mid in cursor:
+        por_ano[ano] += [round(lat * 1000), round(lon * 1000), dia, indice_bioma(bioma),
+                         indice_municipio.get(mid, -1)]
     return {ano: gravar(SAIDA / "focos" / f"{ano}.json", linhas) for ano, linhas in sorted(por_ano.items())}
 
 
@@ -96,12 +115,14 @@ def exportar_meta(conn):
 
 def main():
     with conectar() as conn:
-        focos_tam = exportar_focos(conn)
+        indice_municipio, lista_tam = exportar_lista_municipios(conn)
+        focos_tam = exportar_focos(conn, indice_municipio)
         geo_tam, series_tam = exportar_municipios(conn)
         meta_tam = exportar_meta(conn)
     kb = lambda b: f"{b / 1024:.0f} KB"
     for ano, tam in focos_tam.items():
         print(f"focos/{ano}.json: {kb(tam)}")
+    print(f"municipios_lista.json: {kb(lista_tam)}")
     print(f"municipios.geojson: {kb(geo_tam)}")
     print(f"municipios_series.json: {kb(series_tam)}")
     print(f"meta.json: {kb(meta_tam)}")

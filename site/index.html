@@ -19,18 +19,45 @@
       <p class="sub">Satélite de referência do INPE · <span id="atualizado">carregando…</span></p>
     </header>
 
-    <section class="controles">
+    <section class="controles" aria-label="Filtros">
+      <div class="controles-topo">
+        <span class="rotulo">Filtros</span>
+        <button type="button" id="limpar" class="link" hidden>Limpar filtros</button>
+      </div>
       <label>Ano
         <select id="ano"></select>
       </label>
       <label>Bioma
         <select id="bioma"><option value="-1">Todos</option></select>
       </label>
+      <details id="mais-filtros" class="mais-filtros">
+        <summary>Mais filtros <span id="n-filtros"></span></summary>
+        <div class="mais-grade">
+      <label>De
+        <select id="mes-ini"></select>
+      </label>
+      <label>Até
+        <select id="mes-fim"></select>
+      </label>
+      <label>Região
+        <select id="regiao"><option value="">Todas</option></select>
+      </label>
+      <label>Estado
+        <select id="uf"></select>
+      </label>
+      <label class="largo">Município
+        <input id="mun" type="search" list="lista-mun" placeholder="Buscar pelo nome…" autocomplete="off">
+        <datalist id="lista-mun"></datalist>
+      </label>
+        </div>
+      </details>
       <div class="camada" role="radiogroup" aria-label="Camada do mapa">
         <button type="button" data-camada="hex" class="ativo" role="radio" aria-checked="true">Hexágonos</button>
         <button type="button" data-camada="mun" role="radio" aria-checked="false">Municípios</button>
       </div>
     </section>
+
+    <p class="recorte"><span class="rotulo">Recorte</span> <strong id="recorte">Brasil</strong></p>
 
     <section class="cards">
       <div class="card">
@@ -61,7 +88,7 @@
       <svg id="mun-serie" role="img" aria-label="Focos por mês no município desde 2020"></svg>
       <p class="dica" id="mun-eixo"></p>
     </section>
-    <p class="dica" id="dica-municipio">Na camada Municípios, clique num município para ver a série desde 2020.</p>
+    <p class="dica" id="dica-municipio">Busque um município ou clique nele na camada Municípios para ver a série desde 2020.</p>
 
     <footer>
       <div class="legenda-mapa">
