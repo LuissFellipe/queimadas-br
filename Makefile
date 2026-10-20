@@ -1,4 +1,4 @@
-.PHONY: up ingest malhas focos transform export site pipeline down
+.PHONY: up ingest malhas focos transform export docs site pipeline down
 
 up:
 	docker compose up -d --wait
@@ -21,6 +21,11 @@ down:
 
 export:
 	uv run python export/export_site.py
+
+# Documentação do dbt como página estática, publicada junto com o mapa em /dbt/.
+docs:
+	cd dbt_queimadas && uv run dbt docs generate --static --profiles-dir .
+	mkdir -p site/dbt && cp dbt_queimadas/target/static_index.html site/dbt/index.html
 
 site: export
 	@echo "abra http://localhost:8000"
