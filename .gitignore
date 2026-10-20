@@ -1,0 +1,6 @@
+.env
+.venv/
+dbt_queimadas/target/
+dbt_queimadas/logs/
+dbt_queimadas/dbt_packages/
+__pycache__/
