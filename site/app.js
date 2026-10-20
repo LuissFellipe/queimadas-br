@@ -6,9 +6,19 @@ const BRASIL = [[-74, -34], [-34.5, 5.5]];
 const num = new Intl.NumberFormat("pt-BR");
 const $ = (id) => document.getElementById(id);
 
+// Detalhe por zoom: o hexágono que resume o país cobre vários municípios quando
+// se chega perto de uma cidade. A partir de PONTOS_A_PARTIR_DO_ZOOM, cada foco
+// aparece sozinho.
+const RESOLUCOES = [
+  { ateZoom: 5, res: 5, escopo: "por hexágono de 253 km²" },
+  { ateZoom: 6.5, res: 6, escopo: "por hexágono de 36 km²" },
+  { ateZoom: 8, res: 7, escopo: "por hexágono de 5 km²" },
+];
+const PONTOS_A_PARTIR_DO_ZOOM = 8;
+
 const estado = { ano: null, mes: 0, bioma: -1, camada: "hex", municipio: null };
-const cache = { hex: {}, geo: null, series: null };
-let meta, ultimo, overlay, animacao = null;
+const cache = { focos: {}, celulas: {}, geo: null, series: null };
+let meta, ultimo, mapa, overlay, detalheAtual, animacao = null;
 
 // --- dados ----------------------------------------------------------------
 
@@ -18,9 +28,36 @@ async function json(caminho) {
   return resp.json();
 }
 
-async function hexagonos(ano) {
-  cache.hex[ano] ??= json(`data/h3/${ano}.json`);
-  return cache.hex[ano];
+// data/focos/AAAA.json é uma sequência [lat*1000, lon*1000, dia do ano, bioma, ...].
+async function focos(ano) {
+  cache.focos[ano] ??= json(`data/focos/${ano}.json`).then((bruto) => {
+    const n = bruto.length / 4;
+    const f = { n, lat: new Float32Array(n), lon: new Float32Array(n), dia: new Uint16Array(n),
+      mes: new Uint8Array(n), bioma: new Uint8Array(n) };
+    for (let i = 0; i < n; i++) {
+      f.lat[i] = bruto[4 * i] / 1000;
+      f.lon[i] = bruto[4 * i + 1] / 1000;
+      f.dia[i] = bruto[4 * i + 2];
+      f.mes[i] = new Date(Date.UTC(ano, 0, f.dia[i])).getUTCMonth() + 1;
+      f.bioma[i] = bruto[4 * i + 3];
+    }
+    return f;
+  });
+  return cache.focos[ano];
+}
+
+async function celulas(ano, res) {
+  const chave = `${ano}-${res}`;
+  if (!cache.celulas[chave]) {
+    const f = await focos(ano);
+    cache.celulas[chave] = Array.from({ length: f.n }, (_, i) => h3.latLngToCell(f.lat[i], f.lon[i], res));
+  }
+  return cache.celulas[chave];
+}
+
+function detalhe(zoom) {
+  if (zoom >= PONTOS_A_PARTIR_DO_ZOOM) return { pontos: true, escopo: "(cada ponto é um foco)" };
+  return RESOLUCOES.find((r) => zoom < r.ateZoom) || RESOLUCOES.at(-1);
 }
 
 async function municipios() {
@@ -71,18 +108,46 @@ function percentil99(valores) {
 
 // --- camadas --------------------------------------------------------------
 
+function dataDoFoco(ano, dia) {
+  return new Date(Date.UTC(ano, 0, dia)).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+}
+
 async function camadaHex() {
-  const { celulas, linhas } = await hexagonos(estado.ano);
-  const soma = new Map();
-  for (let i = 0; i < linhas.length; i += 4) {
-    if (!passaMes(linhas[i + 1]) || !passaBioma(linhas[i + 2])) continue;
-    soma.set(linhas[i], (soma.get(linhas[i]) || 0) + linhas[i + 3]);
+  const f = await focos(estado.ano);
+  detalheAtual = detalhe(mapa.getZoom());
+  const passa = (i) => passaMes(f.mes[i]) && passaBioma(f.bioma[i]);
+
+  if (detalheAtual.pontos) {
+    const indices = [];
+    for (let i = 0; i < f.n; i++) if (passa(i)) indices.push(i);
+    legenda(null, detalheAtual.escopo);
+    const ano = estado.ano;
+    return new deck.ScatterplotLayer({
+      id: `pontos-${ano}`,
+      data: indices,
+      getPosition: (i) => [f.lon[i], f.lat[i]],
+      getFillColor: [...RAMPA[2], 230],
+      getLineColor: [255, 224, 138, 200],
+      stroked: true,
+      lineWidthMinPixels: 1,
+      // O pixel do sensor MODIS tem 1 km: o círculo mostra a área que o foco representa.
+      getRadius: 500,
+      radiusUnits: "meters",
+      radiusMinPixels: 3,
+      pickable: true,
+      onHover: ({ object, x, y }) => dica(object !== undefined && object !== null &&
+        `Foco em <strong>${dataDoFoco(ano, f.dia[object])}</strong><br>${meta.biomas[f.bioma[object]]}`, x, y),
+    });
   }
-  const dados = [...soma].map(([c, f]) => ({ h: celulas[c], f }));
+
+  const cel = await celulas(estado.ano, detalheAtual.res);
+  const soma = new Map();
+  for (let i = 0; i < f.n; i++) if (passa(i)) soma.set(cel[i], (soma.get(cel[i]) || 0) + 1);
+  const dados = [...soma].map(([h, n]) => ({ h, f: n }));
   const max = percentil99(dados.map((d) => d.f));
-  legenda(max, "por hexágono de 253 km²");
+  legenda(max, detalheAtual.escopo);
   return new deck.H3HexagonLayer({
-    id: "hex",
+    id: `hex-${detalheAtual.res}`,
     data: dados,
     getHexagon: (d) => d.h,
     getFillColor: (d) => cor(d.f, max),
@@ -90,7 +155,7 @@ async function camadaHex() {
     extruded: false,
     pickable: true,
     onHover: ({ object, x, y }) =>
-      dica(object && `<strong>${num.format(object.f)}</strong> focos neste hexágono`, x, y),
+      dica(object && `<strong>${num.format(object.f)}</strong> ${object.f === 1 ? "foco" : "focos"} neste hexágono`, x, y),
   });
 }
 
@@ -140,8 +205,9 @@ async function desenharMapa() {
 }
 
 function legenda(max, escopo) {
-  $("leg-max").textContent = num.format(max) + "+";
   $("leg-escopo").textContent = escopo;
+  $("rampa").hidden = max === null;
+  if (max !== null) $("leg-max").textContent = num.format(max) + "+";
 }
 
 function dica(html, x, y) {
@@ -345,7 +411,7 @@ async function iniciar() {
   }));
 
   const celular = matchMedia("(max-width: 720px)").matches;
-  const mapa = new maplibregl.Map({
+  mapa = new maplibregl.Map({
     container: "mapa",
     style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
     bounds: BRASIL,
@@ -358,6 +424,11 @@ async function iniciar() {
   overlay = new deck.MapboxOverlay({ layers: [] });
   mapa.addControl(overlay);
   addEventListener("resize", () => { desenharBarras(); atualizarMunicipio(); });
+  mapa.on("zoomend", () => {
+    if (estado.camada !== "hex") return;
+    const novo = detalhe(mapa.getZoom());
+    if (novo.escopo !== detalheAtual?.escopo) desenharMapa();
+  });
 
   await atualizar();
 }

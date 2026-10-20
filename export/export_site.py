@@ -1,21 +1,20 @@
 """Gera os arquivos estáticos que o mapa consome, em site/data/.
 
-Só sai agregação: o navegador nunca recebe o foco bruto. Os hexágonos H3 são
-calculados aqui porque a imagem do PostGIS não traz a extensão h3.
+Os focos saem com o mínimo para o mapa (coordenada, dia e bioma), um arquivo
+por ano. O navegador agrupa em hexágonos H3 na resolução do zoom: com uma
+resolução fixa, o hexágono que faz sentido no país cobre vários municípios
+quando se aproxima de uma cidade.
 """
 
 import json
 import sys
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-
-import h3
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ingest"))
 from db import conectar  # noqa: E402
 
-RESOLUCAO_H3 = 5
 SAIDA = Path(__file__).resolve().parents[1] / "site" / "data"
 BIOMAS = ["Amazônia", "Cerrado", "Caatinga", "Mata Atlântica", "Pantanal", "Pampa"]
 
@@ -30,28 +29,20 @@ def indice_bioma(bioma):
     return BIOMAS.index(bioma) if bioma in BIOMAS else len(BIOMAS)
 
 
-def exportar_hexagonos(conn):
-    # chave (ano) -> Counter[(célula, mês, bioma)]
-    por_ano = defaultdict(Counter)
+def exportar_focos(conn):
+    # Por ano, em sequência: lat e lon em milésimos de grau (~110 m, abaixo do
+    # pixel de 1 km do sensor), dia do ano e índice do bioma.
+    por_ano = defaultdict(list)
     cursor = conn.cursor(name="focos")
     cursor.itersize = 50_000
     cursor.execute(
-        """select extract(year from data)::int, extract(month from data)::int, bioma, lat, lon
-           from intermediate.int_focos__geolocalizados"""
+        """select extract(year from data)::int, extract(doy from data)::int, bioma, lat, lon
+           from intermediate.int_focos__geolocalizados
+           order by data"""
     )
-    for ano, mes, bioma, lat, lon in cursor:
-        celula = h3.latlng_to_cell(lat, lon, RESOLUCAO_H3)
-        por_ano[ano][(celula, mes, indice_bioma(bioma))] += 1
-
-    tamanhos = {}
-    for ano, contagem in sorted(por_ano.items()):
-        celulas = sorted({c for c, _, _ in contagem})
-        posicao = {c: i for i, c in enumerate(celulas)}
-        linhas = []
-        for (celula, mes, bioma), focos in sorted(contagem.items()):
-            linhas += [posicao[celula], mes, bioma, focos]
-        tamanhos[ano] = gravar(SAIDA / "h3" / f"{ano}.json", {"celulas": celulas, "linhas": linhas})
-    return tamanhos
+    for ano, dia, bioma, lat, lon in cursor:
+        por_ano[ano] += [round(lat * 1000), round(lon * 1000), dia, indice_bioma(bioma)]
+    return {ano: gravar(SAIDA / "focos" / f"{ano}.json", linhas) for ano, linhas in sorted(por_ano.items())}
 
 
 def exportar_municipios(conn):
@@ -96,7 +87,6 @@ def exportar_meta(conn):
     ).fetchone()[0]
     return gravar(SAIDA / "meta.json", {
         "biomas": BIOMAS + ["Não informado"],
-        "resolucao_h3": RESOLUCAO_H3,
         "meses": sorted(mensal),
         "mensal_por_bioma": [mensal[m] for m in sorted(mensal)],
         "ultimo_foco_gmt": ultimo_foco.isoformat(),
@@ -106,12 +96,12 @@ def exportar_meta(conn):
 
 def main():
     with conectar() as conn:
-        hex_tam = exportar_hexagonos(conn)
+        focos_tam = exportar_focos(conn)
         geo_tam, series_tam = exportar_municipios(conn)
         meta_tam = exportar_meta(conn)
     kb = lambda b: f"{b / 1024:.0f} KB"
-    for ano, tam in hex_tam.items():
-        print(f"h3/{ano}.json: {kb(tam)}")
+    for ano, tam in focos_tam.items():
+        print(f"focos/{ano}.json: {kb(tam)}")
     print(f"municipios.geojson: {kb(geo_tam)}")
     print(f"municipios_series.json: {kb(series_tam)}")
     print(f"meta.json: {kb(meta_tam)}")
