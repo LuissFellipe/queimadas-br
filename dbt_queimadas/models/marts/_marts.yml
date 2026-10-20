@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: dim_municipios
+    columns:
+      - name: municipio_id
+        data_tests: [unique, not_null]
+  - name: fct_focos_diarios_municipio
+    description: Focos por dia, município e bioma. Data no horário de Brasília.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [data, municipio_id, bioma]
+    columns:
+      - name: municipio_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_municipios')
+                field: municipio_id
+  - name: fct_focos_bioma_mensal
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [mes, bioma]

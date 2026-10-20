@@ -12,7 +12,7 @@ focos:
 ingest: malhas focos
 
 transform:
-	cd dbt_queimadas && uv run dbt build --profiles-dir .
+	cd dbt_queimadas && uv run dbt deps --profiles-dir . && uv run dbt build --profiles-dir .
 
 pipeline: up ingest transform
 

@@ -1,0 +1,12 @@
+dbt_queimadas:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('PGHOST', 'localhost') }}"
+      port: "{{ env_var('PGPORT', '5434') | int }}"
+      user: "{{ env_var('PGUSER', 'queimadas') }}"
+      password: "{{ env_var('PGPASSWORD', 'queimadas') }}"
+      dbname: "{{ env_var('PGDATABASE', 'queimadas') }}"
+      schema: public
+      threads: 4

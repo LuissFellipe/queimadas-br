@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: int_focos__geolocalizados
+    description: Um foco por linha, com o município resolvido pela geometria.
+    columns:
+      - name: foco_id
+        data_tests: [unique, not_null]
+      - name: municipio_id
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              arguments:
+                to: ref('stg_ibge__municipios')
+                field: municipio_id

@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    tables:
+      - name: focos
+        description: Focos de calor do satélite de referência do INPE (AQUA_M-T), um por linha.
+        loaded_at_field: carregado_em
+        freshness:
+          warn_after: {count: 2, period: day}
+          error_after: {count: 4, period: day}
+      - name: municipios
+        description: Malha municipal do IBGE (qualidade intermediária), SIRGAS 2000.

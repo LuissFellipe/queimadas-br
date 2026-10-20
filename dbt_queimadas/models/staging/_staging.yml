@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: stg_inpe__focos
+    columns:
+      - name: foco_id
+        data_tests: [unique, not_null]
+      - name: data
+        data_tests: [not_null]
+      - name: satelite
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['AQUA_M-T']
+      - name: lat
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: -34, max_value: 6}
+      - name: lon
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: -74, max_value: -28}
+  - name: stg_ibge__municipios
+    columns:
+      - name: municipio_id
+        data_tests: [unique, not_null]
+      - name: uf_sigla
+        data_tests: [not_null]

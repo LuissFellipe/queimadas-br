@@ -1,0 +1,15 @@
+name: dbt_queimadas
+version: "1.0.0"
+profile: dbt_queimadas
+
+models:
+  dbt_queimadas:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: table
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts
