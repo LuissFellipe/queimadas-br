@@ -1,5 +1,9 @@
 .PHONY: up ingest malhas focos transform export docs site pipeline down
 
+# As etapas dependem uma da outra pela ordem, não por arquivos: com make -j o
+# transform rodaria antes de a ingestão terminar.
+.NOTPARALLEL:
+
 up:
 	docker compose up -d --wait
 
